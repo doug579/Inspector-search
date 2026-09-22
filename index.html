@@ -2,32 +2,33 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <!-- Prevent search engines from indexing or following links -->
   <meta name="robots" content="noindex, nofollow">
   <meta name="googlebot" content="noindex, nofollow">
   
   <title>SFI Inspector Locator & Directory</title>
+  <!-- Mammoth.js for reading Word .docx tables directly in the browser -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
   <style>
-    /* Content is hidden by default until authentication succeeds */
     #app-container { display: none; }
-    
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 30px auto; max-width: 1100px; padding: 0 20px; color: #222; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 30px auto; max-width: 1150px; padding: 0 20px; color: #222; }
     h1, h2 { border-bottom: 2px solid #eee; padding-bottom: 8px; }
     .card { background: #fdfdfd; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-bottom: 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.04); }
-    .form-row { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+    .form-row { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
     input { padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
-    button { padding: 8px 16px; border: none; border-radius: 4px; background: #0066cc; color: white; cursor: pointer; font-size: 14px; }
-    button:hover { background: #004d99; }
+    button, .file-btn { display: inline-block; padding: 8px 16px; border: none; border-radius: 4px; background: #0066cc; color: white; cursor: pointer; font-size: 14px; font-weight: normal; }
+    button:hover, .file-btn:hover { background: #004d99; }
     button.btn-danger { background: #d9534f; }
     button.btn-danger:hover { background: #c9302c; }
-    button.btn-secondary { background: #6c757d; }
-    button.btn-secondary:hover { background: #5a6268; }
+    button.btn-secondary, .file-btn { background: #6c757d; }
+    button.btn-secondary:hover, .file-btn:hover { background: #5a6268; }
     table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
     th, td { border: 1px solid #e0e0e0; padding: 8px 10px; text-align: left; }
     th { background: #f4f6f8; font-weight: 600; }
     tr:nth-child(even) { background-color: #fafafa; }
     .highlight { background-color: #eaf5ff !important; font-weight: bold; }
     .status { margin-top: 10px; font-weight: 500; }
+    .file-input-wrapper { display: inline-block; position: relative; }
+    .file-input-wrapper input[type="file"] { display: none; }
   </style>
 </head>
 <body>
@@ -51,7 +52,7 @@
 
     <!-- 2. Add Inspector Form -->
     <div class="card">
-      <h2>Add New Inspector</h2>
+      <h2>Add Individual Inspector</h2>
       <form id="addForm" onsubmit="addInspector(event)">
         <div class="form-row">
           <input type="text" id="first" placeholder="First Name" required>
@@ -72,15 +73,20 @@
       <div id="addStatus" class="status"></div>
     </div>
 
-    <!-- 3. Current Directory Table -->
+    <!-- 3. Roster Management & Multi-Format Upload -->
     <div class="card">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
         <h2>Current Roster (<span id="count">0</span>)</h2>
-        <div>
+        <div style="display: flex; gap: 8px;">
+          <div class="file-input-wrapper">
+            <label for="fileInput" class="file-btn">Upload CSV or Word (.docx)</label>
+            <input type="file" id="fileInput" accept=".csv, .docx" onchange="handleFileUpload(event)">
+          </div>
           <button class="btn-secondary" onclick="exportCSV()">Export to CSV</button>
           <button class="btn-danger" onclick="resetToDefault()">Reset Defaults</button>
         </div>
       </div>
+      <div id="uploadStatus" class="status"></div>
       <table id="rosterTable">
         <thead>
           <tr>
@@ -102,7 +108,7 @@
 
 <script>
 // --- CLIENT-SIDE ACCESS GATE ---
-const ACCESS_PIN = "54321"; // Change this to your desired PIN or passcode
+const ACCESS_PIN = "54321"; // Set access code
 let authenticated = sessionStorage.getItem("app_authenticated");
 
 while (authenticated !== ACCESS_PIN) {
@@ -112,13 +118,12 @@ while (authenticated !== ACCESS_PIN) {
     authenticated = ACCESS_PIN;
   } else if (entered === null) {
     document.body.innerHTML = "<h3 style='padding:20px; font-family: sans-serif; color: red;'>Access denied. Please refresh to try again.</h3>";
-    throw new Error("Access denied by user cancelation.");
+    throw new Error("Access denied.");
   } else {
     alert("Incorrect code. Please try again.");
   }
 }
 
-// Reveal page container after authentication
 document.getElementById("app-container").style.display = "block";
 
 function logout() {
@@ -126,7 +131,7 @@ function logout() {
   location.reload();
 }
 
-// --- INSPECTOR DATA & LOCATOR LOGIC ---
+// Default roster initialized with coordinates
 const defaultInspectors = [
   {"First": "Emmanuel", "Last": "Cecchet", "Address": "23 Harlow Clark Rd", "City": "Huntington", "State": "MA", "Zip": "01050", "Phone": "413-667-9001", "Email": "cecchet@gmail.com", "SFI": "A16", "Expires": "12/31/2026", "lat": 42.2741, "lon": -72.8804},
   {"First": "Walter", "Last": "Clark", "Address": "240 Deer Meadow Ln.", "City": "Hendersonville", "State": "NC", "Zip": "28739", "Phone": "781-540-9134", "Email": "walterclark171@gmail.com", "SFI": "A22", "Expires": "12/31/2027", "lat": 35.3216, "lon": -82.4939},
@@ -146,7 +151,7 @@ const defaultInspectors = [
   {"First": "Gregory", "Last": "Lahlum", "Address": "10201 County Road 35", "City": "Marion", "State": "ND", "Zip": "58466", "Phone": "701-793-6919", "Email": "greg.lahlum@gmail.com", "SFI": "A05", "Expires": "12/31/2026", "lat": 46.6083, "lon": -98.3341},
   {"First": "Trevor", "Last": "Matheny", "Address": "27252 County 89", "City": "Park Rapids", "State": "MN", "Zip": "56470", "Phone": "218-260-0491", "Email": "mathenyt@hotmail.com", "SFI": "A08", "Expires": "12/31/2027", "lat": 46.9221, "lon": -95.0587},
   {"First": "Kevin", "Last": "Mount", "Address": "19741 Dunsmuir Plaza", "City": "Yorba Linda", "State": "CA", "Zip": "92886", "Phone": "714-403-9735", "Email": "kn6nze@gmail.com", "SFI": "A26", "Expires": "12/31/2026", "lat": 33.8885, "lon": -117.8131},
-  {"Douglas": "Nagy", "First": "Douglas", "Last": "Nagy", "Address": "P.O. Box 987", "City": "Trabuco Canyon", "State": "CA", "Zip": "92678", "Phone": "949-637-7856", "Email": "doug@streetwiseparts.com", "SFI": "A10", "Expires": "12/31/2027", "lat": 33.6631, "lon": -117.5898},
+  {"First": "Douglas", "Last": "Nagy", "Address": "P.O. Box 987", "City": "Trabuco Canyon", "State": "CA", "Zip": "92678", "Phone": "949-637-7856", "Email": "doug@streetwiseparts.com", "SFI": "A10", "Expires": "12/31/2027", "lat": 33.6631, "lon": -117.5898},
   {"First": "Colin", "Last": "Schulz", "Address": "3224 Kingsley Way", "City": "Madison", "State": "WI", "Zip": "53713", "Phone": "608-345-3944", "Email": "schulz.colin21@gmail.com", "SFI": "A21", "Expires": "12/31/2026", "lat": 43.0384, "lon": -89.3986},
   {"First": "James", "Last": "Tripp", "Address": "205 Creek Side Dr.", "City": "Arapahoe", "State": "NC", "Zip": "28510", "Phone": "919-818-1525", "Email": "samuraimojo@yahoo.com", "SFI": "A30", "Expires": "12/31/2026", "lat": 35.0279, "lon": -76.8286},
   {"First": "Zachary", "Last": "Williams", "Address": "1515 Pin Oak Ct Apt B", "City": "Rolla", "State": "MO", "Zip": "65401", "Phone": "573-453-01111", "Email": "zachwilliams573@gmail.com", "SFI": "A19", "Expires": "12/31/2027", "lat": 37.9514, "lon": -91.7713}
@@ -201,6 +206,152 @@ async function fetchCoords(zip) {
   };
 }
 
+// --- FILE UPLOAD PROCESSING (CSV & WORD .DOCX) ---
+function parseCSVLine(text) {
+  let p = '', c = false, r = [];
+  for (let i = 0; i < text.length; i++) {
+    let cc = text[i], nc = text[i+1];
+    if (cc === '"') {
+      if (c && nc === '"') { p += '"'; i++; }
+      else { c = !c; }
+    } else if (cc === ',' && !c) {
+      r.push(p.trim());
+      p = '';
+    } else {
+      p += cc;
+    }
+  }
+  r.push(p.trim());
+  return r;
+}
+
+async function process2DMatrix(matrix) {
+  const status = document.getElementById('uploadStatus');
+  if (matrix.length < 2) {
+    status.style.color = "red";
+    status.textContent = "The file contains no readable data table.";
+    return;
+  }
+
+  const headers = matrix[0].map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
+  const idxFirst = headers.findIndex(h => h.includes('first'));
+  const idxLast = headers.findIndex(h => h.includes('last'));
+  const idxAddr = headers.findIndex(h => h.includes('address') || h.includes('street'));
+  const idxCity = headers.findIndex(h => h.includes('city'));
+  const idxState = headers.findIndex(h => h.includes('state'));
+  const idxZip = headers.findIndex(h => h.includes('zip') || h.includes('postal'));
+  const idxPhone = headers.findIndex(h => h.includes('phone'));
+  const idxEmail = headers.findIndex(h => h.includes('email'));
+  const idxSFI = headers.findIndex(h => h.includes('sfi'));
+  const idxExp = headers.findIndex(h => h.includes('expire'));
+
+  if (idxLast === -1 || idxZip === -1) {
+    status.style.color = "red";
+    status.textContent = "Headers must include at least 'Last Name' and 'Zip'.";
+    return;
+  }
+
+  const newInspectors = [];
+  status.textContent = `Processing and geocoding ${matrix.length - 1} records...`;
+
+  for (let i = 1; i < matrix.length; i++) {
+    const row = matrix[i];
+    if (row.length <= 1) continue;
+
+    let rawZip = (row[idxZip] || '').replace(/[^0-9]/g, '');
+    if (rawZip.length < 5) rawZip = rawZip.padStart(5, '0');
+    rawZip = rawZip.slice(0, 5);
+
+    let lat = null, lon = null;
+    try {
+      const coords = await fetchCoords(rawZip);
+      lat = coords.lat;
+      lon = coords.lon;
+    } catch (err) {
+      console.warn(`Could not geocode ZIP ${rawZip}`);
+    }
+
+    newInspectors.push({
+      First: idxFirst !== -1 ? row[idxFirst] : '',
+      Last: row[idxLast] || '',
+      Address: idxAddr !== -1 ? row[idxAddr] : '',
+      City: idxCity !== -1 ? row[idxCity] : '',
+      State: idxState !== -1 ? row[idxState] : '',
+      Zip: rawZip,
+      Phone: idxPhone !== -1 ? row[idxPhone] : '',
+      Email: idxEmail !== -1 ? row[idxEmail] : '',
+      SFI: idxSFI !== -1 ? row[idxSFI] : '',
+      Expires: idxExp !== -1 ? row[idxExp] : '',
+      lat: lat,
+      lon: lon
+    });
+  }
+
+  inspectors = newInspectors;
+  saveInspectors();
+  status.style.color = "green";
+  status.textContent = `Successfully loaded ${inspectors.length} inspectors!`;
+}
+
+function handleFileUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const status = document.getElementById('uploadStatus');
+  status.style.color = "#333";
+  status.textContent = "Reading file...";
+
+  const fileName = file.name.toLowerCase();
+
+  if (fileName.endsWith('.csv')) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const lines = e.target.result.split(/\r?\n/).filter(line => line.trim().length > 0);
+      const matrix = lines.map(line => parseCSVLine(line));
+      process2DMatrix(matrix);
+    };
+    reader.readAsText(file);
+  } else if (fileName.endsWith('.docx')) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      mammoth.convertToHtml({ arrayBuffer: e.target.result })
+        .then(function(result) {
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = result.value;
+          const table = tempDiv.querySelector('table');
+          
+          if (!table) {
+            status.style.color = "red";
+            status.textContent = "No table found inside the uploaded Word (.docx) document.";
+            return;
+          }
+
+          const matrix = [];
+          table.querySelectorAll('tr').forEach(tr => {
+            const row = [];
+            tr.querySelectorAll('th, td').forEach(td => {
+              row.push(td.innerText.trim());
+            });
+            if (row.length > 0) matrix.push(row);
+          });
+
+          process2DMatrix(matrix);
+        })
+        .catch(function(err) {
+          status.style.color = "red";
+          status.textContent = "Error parsing .docx file: " + err.message;
+        });
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    status.style.color = "red";
+    status.textContent = "Please select either a .csv or .docx file.";
+  }
+
+  event.target.value = ''; // Reset input to allow re-uploading the same file if needed
+}
+
+// --- ADD SINGLE INSPECTOR ---
 async function addInspector(e) {
   e.preventDefault();
   const status = document.getElementById('addStatus');
@@ -233,8 +384,9 @@ async function addInspector(e) {
   }
 }
 
+// --- DISTANCE CALCULATION ---
 function haversine(lat1, lon1, lat2, lon2) {
-  const R = 3958.8; // Miles
+  const R = 3958.8;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -262,10 +414,14 @@ async function findNearest() {
     const target = await fetchCoords(zip);
     status.textContent = `Showing 3 closest inspectors to ${target.city}, ${target.state} (${zip}):`;
 
-    const ranked = inspectors.map(insp => {
-      const dist = haversine(target.lat, target.lon, insp.lat, insp.lon);
-      return { ...insp, distance: dist };
-    }).sort((a, b) => a.distance - b.distance).slice(0, 3);
+    const ranked = inspectors
+      .filter(i => i.lat !== null && i.lon !== null)
+      .map(insp => {
+        const dist = haversine(target.lat, target.lon, insp.lat, insp.lon);
+        return { ...insp, distance: dist };
+      })
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 3);
 
     let html = `<table>
       <thead>
@@ -295,7 +451,7 @@ async function findNearest() {
 }
 
 function resetToDefault() {
-  if (confirm("Reset roster to original 22 inspectors? All custom additions will be lost.")) {
+  if (confirm("Reset roster to original 22 inspectors? All uploaded and custom entries will be replaced.")) {
     inspectors = [...defaultInspectors];
     saveInspectors();
   }
@@ -314,7 +470,6 @@ function exportCSV() {
   a.click();
 }
 
-// Initial display
 renderRoster();
 </script>
 </body>
