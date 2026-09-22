@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Inspector Locator & Manager</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 30px auto; max-width: 1100px; padding: 0 20px; color: #222; }
+    h1, h2 { border-bottom: 2px solid #eee; padding-bottom: 8px; }
+    .card { background: #fdfdfd; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-bottom: 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.04); }
+    .form-row { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+    input { padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+    button { padding: 8px 16px; border: none; border-radius: 4px; background: #0066cc; color: white; cursor: pointer; font-size: 14px; }
+    button:hover { background: #004d99; }
+    button.btn-danger { background: #d9534f; }
+    button.btn-danger:hover { background: #c9302c; }
+    button.btn-secondary { background: #6c757d; }
+    button.btn-secondary:hover { background: #5a6268; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
+    th, td { border: 1px solid #e0e0e0; padding: 8px 10px; text-align: left; }
+    th { background: #f4f6f8; font-weight: 600; }
+    tr:nth-child(even) { background-color: #fafafa; }
+    .highlight { background-color: #eaf5ff !important; font-weight: bold; }
+    .status { margin-top: 10px; font-weight: 500; }
+  </style>
+</head>
+<body>
+
+  <h1>SFI Inspector Directory & Locator</h1>
+
+  <!-- 1. Search Box -->
+  <div class="card">
+    <h2>Find Nearest 3 Inspectors</h2>
+    <div class="form-row">
+      <input type="text" id="searchZip" placeholder="Enter 5-digit ZIP" maxlength="5">
+      <button onclick="findNearest()">Locate Inspectors</button>
+    </div>
+    <div id="searchStatus" class="status"></div>
+    <div id="resultsArea"></div>
+  </div>
+
+  <!-- 2. Add Inspector Form -->
+  <div class="card">
+    <h2>Add New Inspector</h2>
+    <form id="addForm" onsubmit="addInspector(event)">
+      <div class="form-row">
+        <input type="text" id="first" placeholder="First Name" required>
+        <input type="text" id="last" placeholder="Last Name" required>
+        <input type="text" id="address" placeholder="Address">
+        <input type="text" id="city" placeholder="City" required>
+        <input type="text" id="state" placeholder="State (e.g. IN)" size="5" required>
+        <input type="text" id="zip" placeholder="ZIP" maxlength="5" size="7" required>
+      </div>
+      <div class="form-row">
+        <input type="text" id="phone" placeholder="Phone">
+        <input type="email" id="email" placeholder="Email">
+        <input type="text" id="sfi" placeholder="SFI #" size="8">
+        <input type="text" id="expires" placeholder="Expires (MM/DD/YYYY)">
+        <button type="submit">Save Inspector</button>
+      </div>
+    </form>
+    <div id="addStatus" class="status"></div>
+  </div>
+
+  <!-- 3. Current Directory Table -->
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h2>Current Roster (<span id="count">0</span>)</h2>
+      <div>
+        <button class="btn-secondary" onclick="exportCSV()">Export to CSV</button>
+        <button class="btn-danger" onclick="resetToDefault()">Reset Defaults</button>
+      </div>
+    </div>
+    <table id="rosterTable">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>City, State</th>
+          <th>ZIP</th>
+          <th>Phone</th>
+          <th>Email</th>
+          <th>SFI #</th>
+          <th>Expires</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="rosterBody"></tbody>
+    </table>
+  </div>
+
+<script>
+// Initial dataset with pre-geocoded coordinates
+const defaultInspectors = [
+  {"First": "Emmanuel", "Last": "Cecchet", "Address": "23 Harlow Clark Rd", "City": "Huntington", "State": "MA", "Zip": "01050", "Phone": "413-667-9001", "Email": "cecchet@gmail.com", "SFI": "A16", "Expires": "12/31/2026", "lat": 42.2741, "lon": -72.8804},
+  {"First": "Walter", "Last": "Clark", "Address": "240 Deer Meadow Ln.", "City": "Hendersonville", "State": "NC", "Zip": "28739", "Phone": "781-540-9134", "Email": "walterclark171@gmail.com", "SFI": "A22", "Expires": "12/31/2027", "lat": 35.3216, "lon": -82.4939},
+  {"First": "Michael", "Last": "Cosgrove", "Address": "161 S John St.", "City": "Pearl River", "State": "NY", "Zip": "10965", "Phone": "845-406-0726", "Email": "iorras87@gmail.com", "SFI": "A23", "Expires": "12/31/2027", "lat": 41.0587, "lon": -74.0151},
+  {"First": "Ian", "Last": "Dunsford", "Address": "637 Stewart Valley Dr.", "City": "Smyrna", "State": "TN", "Zip": "37167", "Phone": "615-892-2249", "Email": "iandunsford@yahoo.com", "SFI": "A36", "Expires": "12/31/2027", "lat": 35.9897, "lon": -86.5165},
+  {"First": "Sarah", "Last": "Gardescu", "Address": "1019 Sealy St.", "City": "Galveston", "State": "TX", "Zip": "77550", "Phone": "409-750-2246", "Email": "sgardescu@yahoo.com", "SFI": "A03", "Expires": "12/31/2026", "lat": 29.3013, "lon": -94.7977},
+  {"First": "Barbara", "Last": "Harty", "Address": "2844 County Road 28", "City": "Waterloo", "State": "IN", "Zip": "46793", "Phone": "260-466-1569", "Email": "abs2048@gmail.com", "SFI": "A29", "Expires": "12/31/2027", "lat": 41.4312, "lon": -85.0205},
+  {"First": "Jeff", "Last": "Harty", "Address": "2844 County Road 28", "City": "Waterloo", "State": "IN", "Zip": "46793", "Phone": "260-579-3959", "Email": "jhnh3man@hotmail.com", "SFI": "A07", "Expires": "12/31/2027", "lat": 41.4312, "lon": -85.0205},
+  {"First": "Lee", "Last": "Hilliard", "Address": "127 Tee Kay Mobile Manor", "City": "O Fallon", "State": "MO", "Zip": "63368", "Phone": "636-734-3292", "Email": "lee.e.hilliard@proton.me", "SFI": "A28", "Expires": "12/31/2027", "lat": 38.7495, "lon": -90.7291},
+  {"First": "Matthew", "Last": "Hoffman", "Address": "11216 Nuthatch Ln", "City": "Brighton", "State": "MI", "Zip": "48114", "Phone": "248-444-1621", "Email": "www.matthew.1.hoffman@gm.com", "SFI": "A12", "Expires": "12/31/2027", "lat": 42.5398, "lon": -83.7745},
+  {"First": "Megan", "Last": "Hurley", "Address": "12768 Heathland Dr.", "City": "Knoxville", "State": "TN", "Zip": "37934", "Phone": "865-474-0500", "Email": "mhurley2026@gmail.com", "SFI": "A31", "Expires": "12/31/2026", "lat": 35.8679, "lon": -84.1873},
+  {"First": "Mike", "Last": "Hurst", "Address": "1675 E County Road 500 North", "City": "Danville", "State": "IN", "Zip": "46122", "Phone": "858-243-2115", "Email": "mhurst@sfifoundation.com", "SFI": "A01", "Expires": "12/31/2026", "lat": 39.7891, "lon": -86.5273},
+  {"First": "Kevin", "Last": "James", "Address": "62 County Rd 3195", "City": "Salem", "State": "MO", "Zip": "65560", "Phone": "573-247-6766", "Email": "kevinjam79@hotmail.com", "SFI": "A32", "Expires": "12/31/2026", "lat": 37.6436, "lon": -91.5362},
+  {"First": "David", "Last": "Baker", "Address": "100 Angell Rd", "City": "Cumberland", "RI": "RI", "State": "RI", "Zip": "02864", "Phone": "401-451-8097", "Email": "david@bakersboffins.com", "SFI": "A33", "Expires": "12/31/2026", "lat": 41.9682, "lon": -71.4246},
+  {"First": "Steve", "Last": "Perret", "Address": "2509 Russell Street", "City": "Bellingham", "State": "WA", "Zip": "98225", "Phone": "360-739-1658", "Email": "steverp@msn.com", "SFI": "A34", "Expires": "12/31/2027", "lat": 48.7519, "lon": -122.4787},
+  {"First": "Kathryn", "Last": "Hansen", "Address": "15 Malcom St. #202", "City": "Friday Harbor", "State": "WA", "Zip": "98250", "Phone": "360-739-7459", "Email": "kathrynrallygirl@gmail.com", "SFI": "A35", "Expires": "12/31/2027", "lat": 48.5343, "lon": -123.0179},
+  {"First": "Gregory", "Last": "Lahlum", "Address": "10201 County Road 35", "City": "Marion", "State": "ND", "Zip": "58466", "Phone": "701-793-6919", "Email": "greg.lahlum@gmail.com", "SFI": "A05", "Expires": "12/31/2026", "lat": 46.6083, "lon": -98.3341},
+  {"First": "Trevor", "Last": "Matheny", "Address": "27252 County 89", "City": "Park Rapids", "State": "MN", "Zip": "56470", "Phone": "218-260-0491", "Email": "mathenyt@hotmail.com", "SFI": "A08", "Expires": "12/31/2027", "lat": 46.9221, "lon": -95.0587},
+  {"First": "Kevin", "Last": "Mount", "Address": "19741 Dunsmuir Plaza", "City": "Yorba Linda", "State": "CA", "Zip": "92886", "Phone": "714-403-9735", "Email": "kn6nze@gmail.com", "SFI": "A26", "Expires": "12/31/2026", "lat": 33.8885, "lon": -117.8131},
+  {"First": "Douglas", "Last": "Nagy", "Address": "P.O. Box 987", "City": "Trabuco Canyon", "State": "CA", "Zip": "92678", "Phone": "949-637-7856", "Email": "doug@streetwiseparts.com", "SFI": "A10", "Expires": "12/31/2027", "lat": 33.6631, "lon": -117.5898},
+  {"First": "Colin", "Last": "Schulz", "Address": "3224 Kingsley Way", "City": "Madison", "State": "WI", "Zip": "53713", "Phone": "608-345-3944", "Email": "schulz.colin21@gmail.com", "SFI": "A21", "Expires": "12/31/2026", "lat": 43.0384, "lon": -89.3986},
+  {"First": "James", "Last": "Tripp", "Address": "205 Creek Side Dr.", "City": "Arapahoe", "State": "NC", "Zip": "28510", "Phone": "919-818-1525", "Email": "samuraimojo@yahoo.com", "SFI": "A30", "Expires": "12/31/2026", "lat": 35.0279, "lon": -76.8286},
+  {"First": "Zachary", "Last": "Williams", "Address": "1515 Pin Oak Ct Apt B", "City": "Rolla", "State": "MO", "Zip": "65401", "Phone": "573-453-01111", "Email": "zachwilliams573@gmail.com", "SFI": "A19", "Expires": "12/31/2027", "lat": 37.9514, "lon": -91.7713}
+];
+
+// Persistent state management
+let inspectors = JSON.parse(localStorage.getItem('inspectors')) || defaultInspectors;
+
+function saveInspectors() {
+  localStorage.setItem('inspectors', JSON.stringify(inspectors));
+  renderRoster();
+}
+
+function renderRoster() {
+  const tbody = document.getElementById('rosterBody');
+  tbody.innerHTML = '';
+  document.getElementById('count').textContent = inspectors.length;
+
+  inspectors.forEach((insp, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${insp.First} ${insp.Last}</td>
+      <td>${insp.City}, ${insp.State}</td>
+      <td>${insp.Zip}</td>
+      <td>${insp.Phone || ''}</td>
+      <td>${insp.Email || ''}</td>
+      <td>${insp.SFI || ''}</td>
+      <td>${insp.Expires || ''}</td>
+      <td><button class="btn-danger" style="padding: 4px 8px; font-size: 12px;" onclick="deleteInspector(${idx})">Delete</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function deleteInspector(index) {
+  if (confirm(`Remove ${inspectors[index].First} ${inspectors[index].Last}?`)) {
+    inspectors.splice(index, 1);
+    saveInspectors();
+  }
+}
+
+// Fetch coordinates via free public API
+async function fetchCoords(zip) {
+  const cleanZip = String(zip).padStart(5, '0');
+  const res = await fetch(`https://api.zippopotam.us/us/${cleanZip}`);
+  if (!res.ok) throw new Error("ZIP not found");
+  const data = await res.json();
+  return {
+    lat: parseFloat(data.places[0].latitude),
+    lon: parseFloat(data.places[0].longitude),
+    city: data.places[0]['place name'],
+    state: data.places[0]['state abbreviation']
+  };
+}
+
+async function addInspector(e) {
+  e.preventDefault();
+  const status = document.getElementById('addStatus');
+  const zip = document.getElementById('zip').value.trim();
+  status.textContent = "Geocoding location...";
+
+  try {
+    const coords = await fetchCoords(zip);
+    inspectors.push({
+      First: document.getElementById('first').value.trim(),
+      Last: document.getElementById('last').value.trim(),
+      Address: document.getElementById('address').value.trim(),
+      City: document.getElementById('city').value.trim() || coords.city,
+      State: document.getElementById('state').value.trim() || coords.state,
+      Zip: zip,
+      Phone: document.getElementById('phone').value.trim(),
+      Email: document.getElementById('email').value.trim(),
+      SFI: document.getElementById('sfi').value.trim(),
+      Expires: document.getElementById('expires').value.trim(),
+      lat: coords.lat,
+      lon: coords.lon
+    });
+    saveInspectors();
+    document.getElementById('addForm').reset();
+    status.style.color = "green";
+    status.textContent = "Inspector successfully added!";
+  } catch (err) {
+    status.style.color = "red";
+    status.textContent = "Failed to geocode ZIP code. Please verify it is a valid 5-digit US ZIP.";
+  }
+}
+
+// Distance formula
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 3958.8; // Miles
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+async function findNearest() {
+  const zip = document.getElementById('searchZip').value.trim();
+  const status = document.getElementById('searchStatus');
+  const resultsArea = document.getElementById('resultsArea');
+  resultsArea.innerHTML = '';
+
+  if (!zip || zip.length !== 5) {
+    status.textContent = "Please enter a valid 5-digit ZIP code.";
+    status.style.color = "red";
+    return;
+  }
+
+  status.style.color = "#333";
+  status.textContent = "Calculating distances...";
+
+  try {
+    const target = await fetchCoords(zip);
+    status.textContent = `Showing 3 closest inspectors to ${target.city}, ${target.state} (${zip}):`;
+
+    const ranked = inspectors.map(insp => {
+      const dist = haversine(target.lat, target.lon, insp.lat, insp.lon);
+      return { ...insp, distance: dist };
+    }).sort((a, b) => a.distance - b.distance).slice(0, 3);
+
+    let html = `<table>
+      <thead>
+        <tr>
+          <th>Distance</th><th>Name</th><th>City, State</th><th>ZIP</th><th>Phone</th><th>Email</th><th>SFI #</th>
+        </tr>
+      </thead><tbody>`;
+
+    ranked.forEach(r => {
+      html += `<tr class="highlight">
+        <td><strong>${r.distance.toFixed(1)} miles</strong></td>
+        <td>${r.First} ${r.Last}</td>
+        <td>${r.City}, ${r.State}</td>
+        <td>${r.Zip}</td>
+        <td>${r.Phone || ''}</td>
+        <td><a href="mailto:${r.Email}">${r.Email || ''}</a></td>
+        <td>${r.SFI || ''}</td>
+      </tr>`;
+    });
+    html += `</tbody></table>`;
+    resultsArea.innerHTML = html;
+  } catch (err) {
+    status.style.color = "red";
+    status.textContent = "Could not find location for ZIP " + zip;
+  }
+}
+
+function resetToDefault() {
+  if (confirm("Reset roster to original 22 inspectors? All custom additions will be lost.")) {
+    inspectors = [...defaultInspectors];
+    saveInspectors();
+  }
+}
+
+function exportCSV() {
+  let csv = "First Name,Last Name,Address,City,State,Zip,Phone,Email,SFI #,Expires\n";
+  inspectors.forEach(i => {
+    csv += `"${i.First}","${i.Last}","${i.Address || ''}","${i.City}","${i.State}","${i.Zip}","${i.Phone || ''}","${i.Email || ''}","${i.SFI || ''}","${i.Expires || ''}"\n`;
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.setAttribute('href', url);
+  a.setAttribute('download', 'inspectors.csv');
+  a.click();
+}
+
+// Initial setup
+renderRoster();
+</script>
+</body>
+</html>
