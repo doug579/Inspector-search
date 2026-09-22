@@ -1,11 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta name="robots" content="noindex, nofollow">
-<meta name="googlebot" content="noindex, nofollow">
   <meta charset="UTF-8">
-  <title>Inspector Locator & Manager</title>
+  <!-- Prevent search engines from indexing or following links -->
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="googlebot" content="noindex, nofollow">
+  
+  <title>SFI Inspector Locator & Directory</title>
   <style>
+    /* Content is hidden by default until authentication succeeds */
+    #app-container { display: none; }
+    
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 30px auto; max-width: 1100px; padding: 0 20px; color: #222; }
     h1, h2 { border-bottom: 2px solid #eee; padding-bottom: 8px; }
     .card { background: #fdfdfd; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-bottom: 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.04); }
@@ -27,70 +32,101 @@
 </head>
 <body>
 
-  <h1>SFI Inspector Directory & Locator</h1>
-
-  <!-- 1. Search Box -->
-  <div class="card">
-    <h2>Find Nearest 3 Inspectors</h2>
-    <div class="form-row">
-      <input type="text" id="searchZip" placeholder="Enter 5-digit ZIP" maxlength="5">
-      <button onclick="findNearest()">Locate Inspectors</button>
-    </div>
-    <div id="searchStatus" class="status"></div>
-    <div id="resultsArea"></div>
-  </div>
-
-  <!-- 2. Add Inspector Form -->
-  <div class="card">
-    <h2>Add New Inspector</h2>
-    <form id="addForm" onsubmit="addInspector(event)">
-      <div class="form-row">
-        <input type="text" id="first" placeholder="First Name" required>
-        <input type="text" id="last" placeholder="Last Name" required>
-        <input type="text" id="address" placeholder="Address">
-        <input type="text" id="city" placeholder="City" required>
-        <input type="text" id="state" placeholder="State (e.g. IN)" size="5" required>
-        <input type="text" id="zip" placeholder="ZIP" maxlength="5" size="7" required>
-      </div>
-      <div class="form-row">
-        <input type="text" id="phone" placeholder="Phone">
-        <input type="email" id="email" placeholder="Email">
-        <input type="text" id="sfi" placeholder="SFI #" size="8">
-        <input type="text" id="expires" placeholder="Expires (MM/DD/YYYY)">
-        <button type="submit">Save Inspector</button>
-      </div>
-    </form>
-    <div id="addStatus" class="status"></div>
-  </div>
-
-  <!-- 3. Current Directory Table -->
-  <div class="card">
+  <div id="app-container">
     <div style="display: flex; justify-content: space-between; align-items: center;">
-      <h2>Current Roster (<span id="count">0</span>)</h2>
-      <div>
-        <button class="btn-secondary" onclick="exportCSV()">Export to CSV</button>
-        <button class="btn-danger" onclick="resetToDefault()">Reset Defaults</button>
-      </div>
+      <h1>SFI Inspector Directory & Locator</h1>
+      <button class="btn-secondary" onclick="logout()">Lock App</button>
     </div>
-    <table id="rosterTable">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>City, State</th>
-          <th>ZIP</th>
-          <th>Phone</th>
-          <th>Email</th>
-          <th>SFI #</th>
-          <th>Expires</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody id="rosterBody"></tbody>
-    </table>
+
+    <!-- 1. Search Box -->
+    <div class="card">
+      <h2>Find Nearest 3 Inspectors</h2>
+      <div class="form-row">
+        <input type="text" id="searchZip" placeholder="Enter 5-digit ZIP" maxlength="5">
+        <button onclick="findNearest()">Locate Inspectors</button>
+      </div>
+      <div id="searchStatus" class="status"></div>
+      <div id="resultsArea"></div>
+    </div>
+
+    <!-- 2. Add Inspector Form -->
+    <div class="card">
+      <h2>Add New Inspector</h2>
+      <form id="addForm" onsubmit="addInspector(event)">
+        <div class="form-row">
+          <input type="text" id="first" placeholder="First Name" required>
+          <input type="text" id="last" placeholder="Last Name" required>
+          <input type="text" id="address" placeholder="Address">
+          <input type="text" id="city" placeholder="City" required>
+          <input type="text" id="state" placeholder="State (e.g. IN)" size="5" required>
+          <input type="text" id="zip" placeholder="ZIP" maxlength="5" size="7" required>
+        </div>
+        <div class="form-row">
+          <input type="text" id="phone" placeholder="Phone">
+          <input type="email" id="email" placeholder="Email">
+          <input type="text" id="sfi" placeholder="SFI #" size="8">
+          <input type="text" id="expires" placeholder="Expires (MM/DD/YYYY)">
+          <button type="submit">Save Inspector</button>
+        </div>
+      </form>
+      <div id="addStatus" class="status"></div>
+    </div>
+
+    <!-- 3. Current Directory Table -->
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>Current Roster (<span id="count">0</span>)</h2>
+        <div>
+          <button class="btn-secondary" onclick="exportCSV()">Export to CSV</button>
+          <button class="btn-danger" onclick="resetToDefault()">Reset Defaults</button>
+        </div>
+      </div>
+      <table id="rosterTable">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Address</th>
+            <th>City, State</th>
+            <th>ZIP</th>
+            <th>Phone</th>
+            <th>Email</th>
+            <th>SFI #</th>
+            <th>Expires</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="rosterBody"></tbody>
+      </table>
+    </div>
   </div>
 
 <script>
-// Initial dataset with pre-geocoded coordinates
+// --- CLIENT-SIDE ACCESS GATE ---
+const ACCESS_PIN = "54321"; // Change this to your desired PIN or passcode
+let authenticated = sessionStorage.getItem("app_authenticated");
+
+while (authenticated !== ACCESS_PIN) {
+  let entered = prompt("Enter access code to view directory:");
+  if (entered === ACCESS_PIN) {
+    sessionStorage.setItem("app_authenticated", ACCESS_PIN);
+    authenticated = ACCESS_PIN;
+  } else if (entered === null) {
+    document.body.innerHTML = "<h3 style='padding:20px; font-family: sans-serif; color: red;'>Access denied. Please refresh to try again.</h3>";
+    throw new Error("Access denied by user cancelation.");
+  } else {
+    alert("Incorrect code. Please try again.");
+  }
+}
+
+// Reveal page container after authentication
+document.getElementById("app-container").style.display = "block";
+
+function logout() {
+  sessionStorage.removeItem("app_authenticated");
+  location.reload();
+}
+
+// --- INSPECTOR DATA & LOCATOR LOGIC ---
 const defaultInspectors = [
   {"First": "Emmanuel", "Last": "Cecchet", "Address": "23 Harlow Clark Rd", "City": "Huntington", "State": "MA", "Zip": "01050", "Phone": "413-667-9001", "Email": "cecchet@gmail.com", "SFI": "A16", "Expires": "12/31/2026", "lat": 42.2741, "lon": -72.8804},
   {"First": "Walter", "Last": "Clark", "Address": "240 Deer Meadow Ln.", "City": "Hendersonville", "State": "NC", "Zip": "28739", "Phone": "781-540-9134", "Email": "walterclark171@gmail.com", "SFI": "A22", "Expires": "12/31/2027", "lat": 35.3216, "lon": -82.4939},
@@ -104,19 +140,18 @@ const defaultInspectors = [
   {"First": "Megan", "Last": "Hurley", "Address": "12768 Heathland Dr.", "City": "Knoxville", "State": "TN", "Zip": "37934", "Phone": "865-474-0500", "Email": "mhurley2026@gmail.com", "SFI": "A31", "Expires": "12/31/2026", "lat": 35.8679, "lon": -84.1873},
   {"First": "Mike", "Last": "Hurst", "Address": "1675 E County Road 500 North", "City": "Danville", "State": "IN", "Zip": "46122", "Phone": "858-243-2115", "Email": "mhurst@sfifoundation.com", "SFI": "A01", "Expires": "12/31/2026", "lat": 39.7891, "lon": -86.5273},
   {"First": "Kevin", "Last": "James", "Address": "62 County Rd 3195", "City": "Salem", "State": "MO", "Zip": "65560", "Phone": "573-247-6766", "Email": "kevinjam79@hotmail.com", "SFI": "A32", "Expires": "12/31/2026", "lat": 37.6436, "lon": -91.5362},
-  {"First": "David", "Last": "Baker", "Address": "100 Angell Rd", "City": "Cumberland", "RI": "RI", "State": "RI", "Zip": "02864", "Phone": "401-451-8097", "Email": "david@bakersboffins.com", "SFI": "A33", "Expires": "12/31/2026", "lat": 41.9682, "lon": -71.4246},
+  {"First": "David", "Last": "Baker", "Address": "100 Angell Rd", "City": "Cumberland", "State": "RI", "Zip": "02864", "Phone": "401-451-8097", "Email": "david@bakersboffins.com", "SFI": "A33", "Expires": "12/31/2026", "lat": 41.9682, "lon": -71.4246},
   {"First": "Steve", "Last": "Perret", "Address": "2509 Russell Street", "City": "Bellingham", "State": "WA", "Zip": "98225", "Phone": "360-739-1658", "Email": "steverp@msn.com", "SFI": "A34", "Expires": "12/31/2027", "lat": 48.7519, "lon": -122.4787},
   {"First": "Kathryn", "Last": "Hansen", "Address": "15 Malcom St. #202", "City": "Friday Harbor", "State": "WA", "Zip": "98250", "Phone": "360-739-7459", "Email": "kathrynrallygirl@gmail.com", "SFI": "A35", "Expires": "12/31/2027", "lat": 48.5343, "lon": -123.0179},
   {"First": "Gregory", "Last": "Lahlum", "Address": "10201 County Road 35", "City": "Marion", "State": "ND", "Zip": "58466", "Phone": "701-793-6919", "Email": "greg.lahlum@gmail.com", "SFI": "A05", "Expires": "12/31/2026", "lat": 46.6083, "lon": -98.3341},
   {"First": "Trevor", "Last": "Matheny", "Address": "27252 County 89", "City": "Park Rapids", "State": "MN", "Zip": "56470", "Phone": "218-260-0491", "Email": "mathenyt@hotmail.com", "SFI": "A08", "Expires": "12/31/2027", "lat": 46.9221, "lon": -95.0587},
   {"First": "Kevin", "Last": "Mount", "Address": "19741 Dunsmuir Plaza", "City": "Yorba Linda", "State": "CA", "Zip": "92886", "Phone": "714-403-9735", "Email": "kn6nze@gmail.com", "SFI": "A26", "Expires": "12/31/2026", "lat": 33.8885, "lon": -117.8131},
-  {"First": "Douglas", "Last": "Nagy", "Address": "P.O. Box 987", "City": "Trabuco Canyon", "State": "CA", "Zip": "92678", "Phone": "949-637-7856", "Email": "doug@streetwiseparts.com", "SFI": "A10", "Expires": "12/31/2027", "lat": 33.6631, "lon": -117.5898},
+  {"Douglas": "Nagy", "First": "Douglas", "Last": "Nagy", "Address": "P.O. Box 987", "City": "Trabuco Canyon", "State": "CA", "Zip": "92678", "Phone": "949-637-7856", "Email": "doug@streetwiseparts.com", "SFI": "A10", "Expires": "12/31/2027", "lat": 33.6631, "lon": -117.5898},
   {"First": "Colin", "Last": "Schulz", "Address": "3224 Kingsley Way", "City": "Madison", "State": "WI", "Zip": "53713", "Phone": "608-345-3944", "Email": "schulz.colin21@gmail.com", "SFI": "A21", "Expires": "12/31/2026", "lat": 43.0384, "lon": -89.3986},
   {"First": "James", "Last": "Tripp", "Address": "205 Creek Side Dr.", "City": "Arapahoe", "State": "NC", "Zip": "28510", "Phone": "919-818-1525", "Email": "samuraimojo@yahoo.com", "SFI": "A30", "Expires": "12/31/2026", "lat": 35.0279, "lon": -76.8286},
   {"First": "Zachary", "Last": "Williams", "Address": "1515 Pin Oak Ct Apt B", "City": "Rolla", "State": "MO", "Zip": "65401", "Phone": "573-453-01111", "Email": "zachwilliams573@gmail.com", "SFI": "A19", "Expires": "12/31/2027", "lat": 37.9514, "lon": -91.7713}
-];
+]; //[cite: 1]
 
-// Persistent state management
 let inspectors = JSON.parse(localStorage.getItem('inspectors')) || defaultInspectors;
 
 function saveInspectors() {
@@ -133,6 +168,7 @@ function renderRoster() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${insp.First} ${insp.Last}</td>
+      <td>${insp.Address || ''}</td>
       <td>${insp.City}, ${insp.State}</td>
       <td>${insp.Zip}</td>
       <td>${insp.Phone || ''}</td>
@@ -152,7 +188,6 @@ function deleteInspector(index) {
   }
 }
 
-// Fetch coordinates via free public API
 async function fetchCoords(zip) {
   const cleanZip = String(zip).padStart(5, '0');
   const res = await fetch(`https://api.zippopotam.us/us/${cleanZip}`);
@@ -198,7 +233,6 @@ async function addInspector(e) {
   }
 }
 
-// Distance formula
 function haversine(lat1, lon1, lat2, lon2) {
   const R = 3958.8; // Miles
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -236,7 +270,7 @@ async function findNearest() {
     let html = `<table>
       <thead>
         <tr>
-          <th>Distance</th><th>Name</th><th>City, State</th><th>ZIP</th><th>Phone</th><th>Email</th><th>SFI #</th>
+          <th>Distance</th><th>Name</th><th>Address</th><th>City, State</th><th>ZIP</th><th>Phone</th><th>Email</th><th>SFI #</th>
         </tr>
       </thead><tbody>`;
 
@@ -244,6 +278,7 @@ async function findNearest() {
       html += `<tr class="highlight">
         <td><strong>${r.distance.toFixed(1)} miles</strong></td>
         <td>${r.First} ${r.Last}</td>
+        <td>${r.Address || ''}</td>
         <td>${r.City}, ${r.State}</td>
         <td>${r.Zip}</td>
         <td>${r.Phone || ''}</td>
@@ -279,7 +314,7 @@ function exportCSV() {
   a.click();
 }
 
-// Initial setup
+// Initial display
 renderRoster();
 </script>
 </body>
